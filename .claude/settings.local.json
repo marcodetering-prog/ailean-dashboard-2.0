@@ -148,7 +148,18 @@
       "Bash(\"/c/Program Files/nodejs/node.exe\" node_modules/typescript/lib/tsc.js --noEmit --pretty)",
       "Bash(npx kill-port:*)",
       "Bash(npm run build:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial build: AILEAN KPI Dashboard 2.0\n\nComplete Next.js dashboard built from scratch using:\n- Next.js 16 \\(App Router\\) + TypeScript + Tailwind CSS\n- Recharts for data visualizations\n- Supabase PostgreSQL \\(v_dashboard_base view with analysis_version >= 18\\)\n\nIncludes:\n- 11 dashboard pages \\(Uebersicht, Handwerker, Kosten, Liegenschaften,\n  ROI, Insights, Benchmark, AI Qualitaet, Bug Tracker, Review Queue\\)\n- 12 API endpoints querying Supabase v_dashboard_base view\n- Responsive sidebar navigation with mobile hamburger menu\n- Global filters \\(date range, brand, role toggle\\)\n- KPI cards with threshold coloring \\(green/amber/red\\)\n- German UI labels throughout\n- Railway deployment config \\(standalone output\\)\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git config:*)",
+      "Bash(gh auth status:*)",
+      "Bash(export PATH=\"/c/Program Files/GitHub CLI:$PATH\")",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:vigilant-enigma-production.up.railway.app)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix Railway deployment: bind to 0.0.0.0, copy static assets, update eslint-config\n\n- Add HOSTNAME=0.0.0.0 to start command so Railway can reach the server\n- Add buildCommand to copy .next/static into standalone output\n- Increase healthcheck timeout to 60s\n- Add engines field \\(node>=20\\)\n- Update eslint-config-next to v16 to match Next.js 16\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)",
+      "WebFetch(domain:localhost)"
     ]
   }
 }
