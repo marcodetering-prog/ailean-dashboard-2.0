@@ -120,5 +120,5 @@ export async function GET(request: NextRequest) {
   // Sort by total events descending
   benchmarks.sort((a, b) => b.totalEvents - a.totalEvents);
 
-  return NextResponse.json({ benchmarks });
+  return NextResponse.json(benchmarks);
 }

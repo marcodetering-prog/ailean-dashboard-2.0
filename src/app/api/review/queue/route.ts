@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
   const rows = (data ?? []) as Row[];
   if (rows.length === 0) {
-    return NextResponse.json({ queue: [] });
+    return NextResponse.json([]);
   }
 
   // Filter to pending_review only and sort by started_at descending
@@ -62,5 +62,5 @@ export async function GET(request: NextRequest) {
     brand: row.brand ?? null,
   }));
 
-  return NextResponse.json({ queue });
+  return NextResponse.json(queue);
 }

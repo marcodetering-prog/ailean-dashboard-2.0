@@ -27,7 +27,7 @@ export async function GET(_request: NextRequest) {
 
   const rows = (data ?? []) as Row[];
   if (rows.length === 0) {
-    return NextResponse.json({ clusters: [] });
+    return NextResponse.json([]);
   }
 
   // Map snake_case DB columns to camelCase for the frontend
@@ -44,5 +44,5 @@ export async function GET(_request: NextRequest) {
     status: row.status,
   }));
 
-  return NextResponse.json({ clusters });
+  return NextResponse.json(clusters);
 }

@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
   const rows = (data ?? []) as Row[];
   if (rows.length === 0) {
-    return NextResponse.json({ owners: [] });
+    return NextResponse.json({ owners: [], severityMatrix: [] });
   }
 
   // 2. Fetch tenant_profiles for property owner mapping
@@ -135,5 +135,21 @@ export async function GET(request: NextRequest) {
     }))
     .sort((a, b) => b.totalInquiries - a.totalInquiries);
 
-  return NextResponse.json({ owners });
+  // 5. Build severity matrix: severity × category
+  const severityMatrixMap = new Map<string, number>();
+  for (const row of rows) {
+    const severity = row.estimated_severity || "unknown";
+    const category = row.deficiency_category || "unknown";
+    const key = `${severity}|${category}`;
+    severityMatrixMap.set(key, (severityMatrixMap.get(key) || 0) + 1);
+  }
+
+  const severityMatrix = Array.from(severityMatrixMap.entries()).map(
+    ([key, count]) => {
+      const [severity, category] = key.split("|");
+      return { severity, category, count };
+    }
+  );
+
+  return NextResponse.json({ owners, severityMatrix });
 }

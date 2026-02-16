@@ -94,11 +94,12 @@ export async function GET(request: NextRequest) {
     stateMap.set(label, existing);
   }
 
-  const pipeline: CraftsmanPipelineItem[] = Array.from(stateMap.entries())
+  const pipeline = Array.from(stateMap.entries())
     .map(([stateLabel, d]) => ({
-      stateLabel,
-      stateCategory: d.category,
+      label: stateLabel,
+      category: d.category,
       count: d.count,
+      percentage: safePercent(d.count, totalJobs),
     }))
     .sort((a, b) => b.count - a.count);
 
