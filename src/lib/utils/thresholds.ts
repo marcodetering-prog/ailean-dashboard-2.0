@@ -23,7 +23,7 @@ export interface InverseKPIThreshold {
 // --- Standard thresholds (higher is better) ---
 
 export const thresholds = {
-  aiQualityScore: { green: 4.0, amber: 3.0 } as KPIThreshold,
+  aiQualityScore: { green: 7.0, amber: 5.0 } as KPIThreshold,
   automationRate: { green: 0.85, amber: 0.70 } as KPIThreshold,
   correctTriageRate: { green: 95, amber: 85 } as KPIThreshold,
   deficiencyReportRate: { green: 50, amber: 30 } as KPIThreshold,
@@ -137,10 +137,13 @@ export function getSentimentColor(
 ): ThresholdColor {
   switch (sentiment) {
     case "satisfied":
+    case "positive":
       return "green";
     case "neutral":
+    case "mixed":
       return "blue";
     case "confused":
+    case "negative":
       return "amber";
     case "frustrated":
     case "urgent":

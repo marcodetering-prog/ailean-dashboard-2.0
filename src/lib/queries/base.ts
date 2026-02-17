@@ -54,27 +54,56 @@ export function applyFilters(
 }
 
 /**
- * Create a filtered query on v_dashboard_base.
- * Returns a supabase query builder with filters already applied.
+ * Create a filtered query on v_dashboard_base and fetch ALL rows.
+ *
+ * Supabase JS defaults to returning at most 1,000 rows per request.
+ * This helper paginates transparently so callers always get the
+ * complete result set.
  */
-export function createBaseQuery(
+export async function createBaseQuery(
   supabase: SupabaseClient,
   filters: DashboardFilters,
   select: string = "*"
-) {
-  let query = supabase.from(BASE_VIEW).select(select);
+): Promise<{ data: Record<string, unknown>[] | null; error: { message: string } | null }> {
+  const PAGE_SIZE = 1000;
+  let allRows: Record<string, unknown>[] = [];
+  let from = 0;
 
-  if (filters.dateFrom) {
-    query = query.gte("started_at", filters.dateFrom);
-  }
-  if (filters.dateTo) {
-    query = query.lte("started_at", `${filters.dateTo}T23:59:59.999Z`);
-  }
-  if (filters.brand && filters.brand !== "all") {
-    query = query.eq("brand", filters.brand);
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    let query = supabase
+      .from(BASE_VIEW)
+      .select(select)
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (filters.dateFrom) {
+      query = query.gte("started_at", filters.dateFrom);
+    }
+    if (filters.dateTo) {
+      query = query.lte("started_at", `${filters.dateTo}T23:59:59.999Z`);
+    }
+    if (filters.brand && filters.brand !== "all") {
+      query = query.eq("brand", filters.brand);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      return { data: null, error };
+    }
+
+    const rows = (data ?? []) as unknown as Record<string, unknown>[];
+    allRows = allRows.concat(rows);
+
+    // If we got fewer rows than the page size, we've reached the end
+    if (rows.length < PAGE_SIZE) {
+      break;
+    }
+
+    from += PAGE_SIZE;
   }
 
-  return query;
+  return { data: allRows, error: null };
 }
 
 /**

@@ -267,8 +267,8 @@ export default function UebersichtPage() {
 
             <KPICard
               title="AI Qualitaetsscore"
-              value={data.avgAiQualityScore.toFixed(1) + "/5"}
-              subtitle="Durchschnittliche Bewertung"
+              value={data.avgAiQualityScore.toFixed(1) + "/10"}
+              subtitle="Durchschnittliche Bewertung (Skala 1-10)"
               icon={Brain}
               thresholdColor={getThresholdColor(
                 data.avgAiQualityScore,

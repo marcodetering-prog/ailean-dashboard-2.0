@@ -55,7 +55,10 @@ export const eventOutcomeLabels: Record<EventOutcome, string> = {
 export const sentimentLabels: Record<TenantSentiment, string> = {
   confused: "Verwirrt",
   frustrated: "Frustriert",
+  mixed: "Gemischt",
+  negative: "Negativ",
   neutral: "Neutral",
+  positive: "Positiv",
   satisfied: "Zufrieden",
   urgent: "Dringend",
 };
@@ -68,16 +71,11 @@ export const severityLabels: Record<EstimatedSeverity, string> = {
 };
 
 export const resolutionMethodLabels: Record<ResolutionMethod, string> = {
-  agent_takeover: "Agent-Uebernahme",
-  deficiency_report_sent: "Mangelbericht gesendet",
-  deficiency_updated: "Mangel aktualisiert",
-  electricity_investigation: "Elektrik-Untersuchung",
-  information_provided: "Information bereitgestellt",
-  move_in_email: "Einzugs-E-Mail",
-  no_resolution: "Keine Loesung",
-  self_repair_guidance: "Selbstreparatur-Anleitung",
-  self_repaired: "Selbst repariert",
-  tenant_abandoned: "Mieter abgebrochen",
+  abandoned: "Abgebrochen",
+  ai_resolved: "AI geloest",
+  deficiency_created: "Mangel erstellt",
+  human_handoff: "Uebergabe an Mitarbeiter",
+  ongoing: "In Bearbeitung",
 };
 
 export const deficiencyCategoryLabels: Record<DeficiencyCategory, string> = {
@@ -131,6 +129,26 @@ export const brandLabels: Record<Brand, string> = {
   peterhalter: "Peter Halter",
 };
 
+export const deficiencyStateLabels: Record<string, string> = {
+  Reported: "Gemeldet",
+  NotStarted: "Nicht begonnen",
+  Scheduled: "Terminiert",
+  Started: "Gestartet",
+  Completed: "Abgeschlossen",
+  Deleted: "Geloescht",
+  RejectedEscalated: "Abgelehnt / Eskaliert",
+  Accepted: "Akzeptiert",
+  AwaitingFeedback: "Warten auf Rueckmeldung",
+  WaitingForCraftsman: "Warten auf Handwerker",
+  RejectedCompanyReminded: "Abgelehnt / Firma erinnert",
+  RejectedCompanyEscalated: "Abgelehnt / Firma eskaliert",
+  IgnoredEscalated: "Ignoriert / Eskaliert",
+  IgnoredCompanyReminded: "Ignoriert / Firma erinnert",
+  IgnoredCompanyEscalated: "Ignoriert / Firma eskaliert",
+  CompletedWithTenantFollowUp: "Abgeschlossen (Mieter-Nachfrage)",
+  CompletedWithCompanyHelp: "Abgeschlossen (mit Firmenhilfe)",
+};
+
 export const stateCategories: Record<DeficiencyStateCategory, string> = {
   open: "Offen",
   in_progress: "In Bearbeitung",
@@ -171,6 +189,7 @@ export function getGermanLabel(value: string): string {
     severityLabels,
     resolutionMethodLabels,
     deficiencyCategoryLabels,
+    deficiencyStateLabels,
     reviewStatusLabels,
     slaLabels,
     bugCategoryLabels,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 
@@ -26,6 +26,8 @@ interface DataTableProps<T> {
   className?: string;
   emptyMessage?: string;
   isLoading?: boolean;
+  /** Optional row expansion renderer — return null to skip */
+  renderRowExpansion?: (row: T) => React.ReactNode;
 }
 
 type SortDirection = "asc" | "desc" | null;
@@ -37,6 +39,7 @@ export function DataTable<T>({
   className,
   emptyMessage = "Keine Daten vorhanden",
   isLoading,
+  renderRowExpansion,
 }: DataTableProps<T>) {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
@@ -155,32 +158,35 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              paginatedData.map((row, rowIndex) => (
-                <tr
-                  key={rowIndex}
-                  className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors"
-                >
-                  {columns.map((col) => {
-                    const value = col.accessor(row);
-                    return (
-                      <td
-                        key={col.key}
-                        className={cn(
-                          "px-4 py-3",
-                          col.align === "right"
-                            ? "text-right"
-                            : col.align === "center"
-                            ? "text-center"
-                            : "text-left",
-                          col.className
-                        )}
-                      >
-                        {col.render ? col.render(value, row) : String(value ?? "-")}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))
+              paginatedData.map((row, rowIndex) => {
+                const expansion = renderRowExpansion?.(row);
+                return (
+                  <React.Fragment key={rowIndex}>
+                    <tr className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
+                      {columns.map((col) => {
+                        const value = col.accessor(row);
+                        return (
+                          <td
+                            key={col.key}
+                            className={cn(
+                              "px-4 py-3",
+                              col.align === "right"
+                                ? "text-right"
+                                : col.align === "center"
+                                ? "text-center"
+                                : "text-left",
+                              col.className
+                            )}
+                          >
+                            {col.render ? col.render(value, row) : String(value ?? "-")}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    {expansion}
+                  </React.Fragment>
+                );
+              })
             )}
           </tbody>
         </table>

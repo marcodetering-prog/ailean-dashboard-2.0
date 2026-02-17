@@ -192,8 +192,8 @@ export default function AiQualityPage() {
             <KPIGrid columns={3}>
               <KPICard
                 title="AI Qualitaetsscore"
-                value={data.avgQualityScore.toFixed(1) + "/5"}
-                subtitle="Durchschnittliche Bewertung"
+                value={data.avgQualityScore.toFixed(1) + "/10"}
+                subtitle="Durchschnittliche Bewertung (Skala 1-10)"
                 icon={Brain}
                 thresholdColor={getThresholdColor(
                   data.avgQualityScore,
@@ -264,7 +264,7 @@ export default function AiQualityPage() {
             {/* Quality Score Histogram */}
             <ChartCard
               title="Qualitaetsscore Verteilung"
-              subtitle="Histogramm der Bewertungen (Score 1-5)"
+              subtitle="Histogramm der Bewertungen (Score 1-10)"
             >
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart
@@ -304,7 +304,7 @@ export default function AiQualityPage() {
                   <XAxis dataKey="period" tick={{ fontSize: 11 }} />
                   <YAxis
                     tick={{ fontSize: 12 }}
-                    domain={[0, 5]}
+                    domain={[0, 10]}
                     allowDecimals
                   />
                   <Tooltip content={<CustomAreaTooltip />} />

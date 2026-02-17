@@ -37,7 +37,10 @@ export type EventOutcome =
 export type TenantSentiment =
   | "confused"
   | "frustrated"
+  | "mixed"
+  | "negative"
   | "neutral"
+  | "positive"
   | "satisfied"
   | "urgent";
 
@@ -46,16 +49,11 @@ export type EstimatedSeverity = "critical" | "high" | "low" | "medium";
 export type ReviewStatus = "auto_approved" | "pending_review";
 
 export type ResolutionMethod =
-  | "agent_takeover"
-  | "deficiency_report_sent"
-  | "deficiency_updated"
-  | "electricity_investigation"
-  | "information_provided"
-  | "move_in_email"
-  | "no_resolution"
-  | "self_repair_guidance"
-  | "self_repaired"
-  | "tenant_abandoned";
+  | "abandoned"
+  | "ai_resolved"
+  | "deficiency_created"
+  | "human_handoff"
+  | "ongoing";
 
 export type DeficiencyCategory =
   | "appliance"
@@ -72,20 +70,23 @@ export type DeficiencyCategory =
   | "structural";
 
 export type DeficiencyStateLabel =
-  | "Appointment Scheduled"
-  | "Awaiting Response"
-  | "Cancelled"
-  | "Cost Approved"
-  | "Craftsman Assigned"
-  | "Created"
-  | "Invoice Disputed"
-  | "Invoice Submitted"
-  | "On Hold"
-  | "Reopened"
-  | "Repair Completed"
-  | "Sent to Craftsman"
-  | "Tenant Confirmed"
-  | "Under Repair";
+  | "Reported"
+  | "NotStarted"
+  | "Scheduled"
+  | "Started"
+  | "Completed"
+  | "Deleted"
+  | "RejectedEscalated"
+  | "Accepted"
+  | "AwaitingFeedback"
+  | "WaitingForCraftsman"
+  | "RejectedCompanyReminded"
+  | "RejectedCompanyEscalated"
+  | "IgnoredEscalated"
+  | "IgnoredCompanyReminded"
+  | "IgnoredCompanyEscalated"
+  | "CompletedWithTenantFollowUp"
+  | "CompletedWithCompanyHelp";
 
 export type DeficiencyStateCategory =
   | "open"

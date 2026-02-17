@@ -1,5 +1,6 @@
 // ============================================================
-// /api/properties — Property owner statistics
+// /api/properties — Property owner & building hierarchy stats
+// Uses v_property_hierarchy view + v_dashboard_base for severity matrix
 // ============================================================
 
 import { NextRequest, NextResponse } from "next/server";
@@ -8,9 +9,7 @@ import {
   parseFilters,
   createBaseQuery,
   safePercent,
-  safeAvg,
 } from "@/lib/queries/base";
-import type { PropertyOwnerStats } from "@/lib/types/api";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
@@ -23,133 +22,149 @@ export async function GET(request: NextRequest) {
   const supabase = createServerClient();
   const filters = parseFilters(request.nextUrl.searchParams);
 
-  // 1. Fetch all rows from v_dashboard_base
-  const { data, error } = await createBaseQuery(supabase, filters);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  const rows = (data ?? []) as Row[];
-  if (rows.length === 0) {
-    return NextResponse.json({ owners: [], severityMatrix: [] });
-  }
-
-  // 2. Fetch tenant_profiles for property owner mapping
-  const { data: profileData, error: profileError } = await supabase
-    .from("tenant_profiles")
+  // 1. Fetch hierarchy data from v_property_hierarchy
+  let hierarchyQuery = supabase
+    .from("v_property_hierarchy")
     .select("*");
 
-  if (profileError) {
+  if (filters.brand && filters.brand !== "all") {
+    hierarchyQuery = hierarchyQuery.eq("brand", filters.brand);
+  }
+
+  const { data: hierarchyData, error: hierarchyError } = await hierarchyQuery;
+
+  if (hierarchyError) {
     return NextResponse.json(
-      { error: profileError.message },
+      { error: hierarchyError.message },
       { status: 500 }
     );
   }
 
-  // Build a lookup: conversation_id -> tenant profile
-  const profiles = (profileData ?? []) as Row[];
-  const profileMap = new Map<string, Row>();
-  for (const p of profiles) {
-    if (p.conversation_id) {
-      profileMap.set(p.conversation_id, p);
-    }
-  }
+  const hierarchyRows = (hierarchyData ?? []) as Row[];
 
-  // 3. Group rows by property_owner
-  const ownerMap = new Map<
-    string,
-    {
+  // 2. Build owner-level aggregation with building details
+  type OwnerEntry = {
+    brand: string;
+    totalInquiries: number;
+    deficiencyReports: number;
+    resolvedCount: number;
+    tenantCount: number;
+    qualityScoreSum: number;
+    qualityScoreCount: number;
+    durationSum: number;
+    durationCount: number;
+    buildings: Array<{
+      address: string;
       totalInquiries: number;
       deficiencyReports: number;
       resolvedCount: number;
-      tenants: Set<string>;
-      qualityScores: number[];
-    }
-  >();
+      tenantCount: number;
+    }>;
+  };
 
-  for (const row of rows) {
-    const profile = profileMap.get(row.conversation_id);
-    const owner = profile?.property_owner || row.property_owner || "Unknown";
+  const ownerMap = new Map<string, OwnerEntry>();
 
-    const existing = ownerMap.get(owner) || {
+  for (const row of hierarchyRows) {
+    const owner = row.property_owner || "Unbekannt";
+    const existing: OwnerEntry = ownerMap.get(owner) || {
+      brand: row.brand,
       totalInquiries: 0,
       deficiencyReports: 0,
       resolvedCount: 0,
-      tenants: new Set<string>(),
-      qualityScores: [],
+      tenantCount: 0,
+      qualityScoreSum: 0,
+      qualityScoreCount: 0,
+      durationSum: 0,
+      durationCount: 0,
+      buildings: [],
     };
 
-    existing.totalInquiries += 1;
+    const inquiries = Number(row.total_inquiries) || 0;
+    const deficiencies = Number(row.deficiency_reports) || 0;
+    const resolved = Number(row.resolved_count) || 0;
+    const tenants = Number(row.tenant_count) || 0;
 
-    if (row.has_deficiency_report === true) {
-      existing.deficiencyReports += 1;
+    existing.totalInquiries += inquiries;
+    existing.deficiencyReports += deficiencies;
+    existing.resolvedCount += resolved;
+    existing.tenantCount += tenants;
+
+    if (row.avg_quality_score != null) {
+      existing.qualityScoreSum += Number(row.avg_quality_score) * inquiries;
+      existing.qualityScoreCount += inquiries;
+    }
+    if (row.avg_duration_min != null) {
+      existing.durationSum += Number(row.avg_duration_min) * inquiries;
+      existing.durationCount += inquiries;
     }
 
-    // Count as resolved if deficiency_state_label indicates resolution
-    const resolvedStates = [
-      "resolved",
-      "completed",
-      "closed",
-      "done",
-      "fertig",
-      "abgeschlossen",
-    ];
-    if (
-      row.deficiency_state_label &&
-      resolvedStates.some((s) =>
-        String(row.deficiency_state_label).toLowerCase().includes(s)
-      )
-    ) {
-      existing.resolvedCount += 1;
-    }
-
-    // Track unique tenants
-    const tenantId = profile?.tenant_id || row.conversation_id;
-    existing.tenants.add(tenantId);
-
-    if (row.ai_quality_score != null) {
-      existing.qualityScores.push(Number(row.ai_quality_score));
+    if (row.building_address) {
+      existing.buildings.push({
+        address: row.building_address,
+        totalInquiries: inquiries,
+        deficiencyReports: deficiencies,
+        resolvedCount: resolved,
+        tenantCount: tenants,
+      });
     }
 
     ownerMap.set(owner, existing);
   }
 
-  // 4. Build response
-  const owners: PropertyOwnerStats[] = Array.from(ownerMap.entries())
+  // 3. Build owners array
+  const owners = Array.from(ownerMap.entries())
     .map(([propertyOwner, s]) => ({
       propertyOwner,
+      brand: s.brand,
       totalInquiries: s.totalInquiries,
       deficiencyReports: s.deficiencyReports,
       resolvedCount: s.resolvedCount,
       resolutionRate: safePercent(s.resolvedCount, s.deficiencyReports),
-      tenantCount: s.tenants.size,
+      tenantCount: s.tenantCount,
       avgQualityScore:
-        s.qualityScores.length > 0
-          ? safeAvg(
-              s.qualityScores.reduce((a, b) => a + b, 0),
-              s.qualityScores.length,
-              2
-            )
+        s.qualityScoreCount > 0
+          ? Number((s.qualityScoreSum / s.qualityScoreCount).toFixed(1))
           : null,
+      avgDurationMin:
+        s.durationCount > 0
+          ? Number((s.durationSum / s.durationCount).toFixed(1))
+          : null,
+      buildings: s.buildings.sort(
+        (a, b) => b.totalInquiries - a.totalInquiries
+      ),
     }))
     .sort((a, b) => b.totalInquiries - a.totalInquiries);
 
-  // 5. Build severity matrix: severity × category
-  const severityMatrixMap = new Map<string, number>();
-  for (const row of rows) {
-    const severity = row.estimated_severity || "unknown";
-    const category = row.deficiency_category || "unknown";
-    const key = `${severity}|${category}`;
-    severityMatrixMap.set(key, (severityMatrixMap.get(key) || 0) + 1);
-  }
-
-  const severityMatrix = Array.from(severityMatrixMap.entries()).map(
-    ([key, count]) => {
-      const [severity, category] = key.split("|");
-      return { severity, category, count };
-    }
+  // 4. Build severity matrix from v_dashboard_base
+  const { data: baseData, error: baseError } = await createBaseQuery(
+    supabase,
+    filters
   );
+
+  let severityMatrix: Array<{
+    severity: string;
+    category: string;
+    count: number;
+  }> = [];
+
+  if (!baseError && baseData) {
+    const baseRows = baseData as Row[];
+    const severityMatrixMap = new Map<string, number>();
+    for (const row of baseRows) {
+      if (row.has_deficiency_report !== true) continue;
+      const severity = row.estimated_severity || "unknown";
+      const category = row.deficiency_category || "unknown";
+      const key = `${severity}|${category}`;
+      severityMatrixMap.set(key, (severityMatrixMap.get(key) || 0) + 1);
+    }
+
+    severityMatrix = Array.from(severityMatrixMap.entries()).map(
+      ([key, count]) => {
+        const [severity, category] = key.split("|");
+        return { severity, category, count };
+      }
+    );
+  }
 
   return NextResponse.json({ owners, severityMatrix });
 }

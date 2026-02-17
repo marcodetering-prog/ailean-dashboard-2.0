@@ -136,7 +136,11 @@ export async function GET(request: NextRequest) {
       total
     ),
     stateBreakdown: mapToBreakdown(
-      groupBy(rows, (r) => r.deficiency_state_label),
+      groupBy(rows, (r) =>
+        r.deficiency_state_label != null
+          ? r.deficiency_state_label
+          : "Kein Mangel"
+      ),
       total
     ),
 
