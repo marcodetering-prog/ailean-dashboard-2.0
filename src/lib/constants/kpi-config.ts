@@ -29,28 +29,28 @@ export const overviewHeroCards: KPICardConfig[] = [
     title: "Gesamte Anfragen",
     icon: MessageSquare,
     unit: "count",
-    drillDownHref: "/insights",
+    drillDownHref: "/berichte",
   },
   {
     key: "deficiencyReportRate",
     title: "Maengelberichte",
     icon: FileText,
     unit: "percent",
-    drillDownHref: "/handwerker",
+    drillDownHref: "/maengel",
   },
   {
     key: "avgAiQualityScore",
     title: "AI Qualitaetsscore",
     icon: Brain,
     unit: "score",
-    drillDownHref: "/ai-quality",
+    drillDownHref: "/ai-performance",
   },
   {
     key: "automationRate",
     title: "Automatisierungsrate",
     icon: Zap,
     unit: "percent",
-    drillDownHref: "/insights",
+    drillDownHref: "/ai-performance",
   },
   {
     key: "avgFirstResponseSec",
@@ -58,7 +58,7 @@ export const overviewHeroCards: KPICardConfig[] = [
     icon: Clock,
     unit: "seconds",
     inverseThreshold: true,
-    drillDownHref: "/insights",
+    drillDownHref: "/ai-performance",
   },
   {
     key: "avgDurationMin",
@@ -66,7 +66,7 @@ export const overviewHeroCards: KPICardConfig[] = [
     icon: Timer,
     unit: "minutes",
     inverseThreshold: true,
-    drillDownHref: "/insights",
+    drillDownHref: "/ai-performance",
   },
 ];
 
@@ -76,14 +76,14 @@ export const executiveHeroCards: KPICardConfig[] = [
     title: "AI Qualitaetsscore",
     icon: Brain,
     unit: "score",
-    drillDownHref: "/ai-quality",
+    drillDownHref: "/ai-performance",
   },
   {
     key: "automationRate",
     title: "Automatisierungsrate",
     icon: Zap,
     unit: "percent",
-    drillDownHref: "/insights",
+    drillDownHref: "/ai-performance",
   },
   {
     key: "bugRate",
@@ -91,7 +91,7 @@ export const executiveHeroCards: KPICardConfig[] = [
     icon: Brain,
     unit: "percent",
     inverseThreshold: true,
-    drillDownHref: "/bug-tracker",
+    drillDownHref: "/ai-performance",
   },
   {
     key: "loopDetectionRate",
@@ -99,7 +99,7 @@ export const executiveHeroCards: KPICardConfig[] = [
     icon: Brain,
     unit: "percent",
     inverseThreshold: true,
-    drillDownHref: "/ai-quality",
+    drillDownHref: "/ai-performance",
   },
   {
     key: "misunderstandingRate",
@@ -107,7 +107,7 @@ export const executiveHeroCards: KPICardConfig[] = [
     icon: Brain,
     unit: "percent",
     inverseThreshold: true,
-    drillDownHref: "/ai-quality",
+    drillDownHref: "/ai-performance",
   },
   {
     key: "avgFirstResponseSec",
@@ -115,7 +115,7 @@ export const executiveHeroCards: KPICardConfig[] = [
     icon: Clock,
     unit: "seconds",
     inverseThreshold: true,
-    drillDownHref: "/insights",
+    drillDownHref: "/ai-performance",
   },
 ];
 
