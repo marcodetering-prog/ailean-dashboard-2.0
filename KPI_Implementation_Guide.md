@@ -1100,6 +1100,90 @@ WHERE aa.brand = :brand GROUP BY aa.brand;
 
 ---
 
+## SECTION 10: Dashboard Page Mapping
+
+The production dashboard at `vigilant-enigma-production.up.railway.app` is a Next.js application with 7 pages. Below is the mapping between each page and the validated KPIs it displays.
+
+### Page 1: /uebersicht (Overview)
+**Purpose:** High-level KPI summary with key metrics and detail analysis widgets.
+**Contains:** Aggregated views from other pages — acts as the entry point.
+
+### Page 2: /maengel (Deficiency Analysis)
+**KPIs displayed:**
+- KPI #18 — Deficiencies per Category (PASS)
+- KPIs #21-24 — Time Period Analysis: monthly, quarterly, yearly, custom (PASS)
+- KPI #35 — Deficiency Closing Time (PASS)
+
+### Page 3: /berichte (Reports)
+**KPIs displayed:**
+- KPIs #25-30 — Reporting Dimensions: per owner, portfolio, building, unit, postal code, tenant (PASS/PARTIAL)
+- KPI #36 — Who Uses AILEAN Most (PASS)
+- KPIs #1-17 — Property & Tenant Data (PASS/PARTIAL)
+
+### Page 4: /stimmung (Sentiment)
+**KPIs displayed:**
+- KPIs #31-34 — Sentiment Analysis: distribution, positive→negative arc, negative→positive arc (PASS)
+- KPIs #37-39 — Demographics, Rating, Feedback (FAIL — shown as placeholders)
+- KPI #41 — Mail Analytics (PASS)
+
+### Page 5: /roi (ROI Calculator)
+**KPIs displayed:**
+- ADD-3 — Cost Saved CHF (FAIL — uses estimated classification)
+- ADD-4 — Time Saved minutes (FAIL — uses estimated classification)
+- Cost comparison: AILEAN cost vs manual PM cost per event category
+
+### Page 6: /ai-performance (AI Performance)
+**KPIs displayed:**
+- ADD-5 — Avg Response Time (PASS)
+- ADD-6 — SLA Compliance Rate (PASS)
+- ADD-8 — False Success Rate (PASS)
+- ADD-10 — Language Distribution (PASS)
+- ADD-12 — Loop Detection / Ping Pong Rate (PASS)
+- ADD-13 — Avg Tenant Effort Score (PARTIAL — shows "—/10")
+- ADD-17 — Tenant Adoption Rate (PASS)
+
+**"Coming Soon" placeholders:**
+- ADD-1 — Event Classification & Workload Reduction (FAIL)
+- ADD-2 — Inquiries per Day Inside/Outside Hours (FAIL)
+- ADD-7 — Routing Accuracy (FAIL)
+
+### Page 7: /novac (NOVAC Review)
+**KPIs displayed:**
+- NOVAC #1 — Anzahl versendeter Tickets (PASS)
+- NOVAC #2 — 1x Eskalation (PASS)
+- NOVAC #3 — 2x Eskalation Head of NOVAC (PASS)
+- NOVAC #4 — Themenverteilung (PASS)
+- NOVAC #5 — Verteilung nach Liegenschaften (PASS)
+- NOVAC #6 — Durchschnittliche Bearbeitungszeit (PASS)
+- NOVAC #7 — Bugs gemeldet (PASS)
+- NOVAC #9 — Externe vs Head of NOVAC (PASS)
+- NOVAC #10 — AILEAN Tickets vs Fälle gesamt (PASS)
+
+**"Coming Soon" placeholder:**
+- NOVAC #8 — Jotform weitergeleitet (FAIL)
+
+### KPIs NOT on Dashboard (PASS but missing)
+
+These validated KPIs have data in the database but are not yet displayed on any dashboard page:
+
+| KPI | Name | Verdict | Reason likely missing |
+|-----|------|---------|----------------------|
+| ADD-9 | Message Count & Avg Messages per Event | PASS | Operational metric, not yet surfaced |
+| ADD-11 | Repeat Tenant Rate | PASS | New KPI, not yet integrated |
+| ADD-15 | Bug Rate (Overall) | PASS | Internal QA metric, may be intentionally hidden from clients |
+
+### Dashboard Implementation Notes
+
+1. **Client-specific filtering:** Dashboard currently shows data per brand (PH/NOVAC). Each client should only see their own data. The `/novac` page is NOVAC-specific; other pages filter by brand parameter.
+
+2. **"Coming Soon" alignment:** All 4 "Coming Soon" items on the dashboard (ADD-1, ADD-2, ADD-7, NOVAC #8) match our FAIL verdicts — they genuinely require new infrastructure (AI classification layer for ADD-1/2, human review workflow for ADD-7, Jotform integration for NOVAC #8).
+
+3. **Effort Score display:** ADD-13 shows "—/10" on the AI Performance page, confirming it's a PARTIAL implementation — the proxy formula exists but needs validation before being displayed with actual values.
+
+4. **ROI page dependency:** The ROI calculator on `/roi` uses estimated event classification for cost/time calculations. Once ADD-1 (Event Classification) is built, the ROI calculations will be accurate instead of estimated.
+
+---
+
 ## Suggested DB Fix (Priority)
 
 Replace `tenant_profiles.accommodation_id` (currently links to brand, 2 values) with `tenant_profiles.property_id` FK → `azure_real_estate_properties.id` for clean tenant→unit linking. This fixes KPIs #14-17 and improves #28.
