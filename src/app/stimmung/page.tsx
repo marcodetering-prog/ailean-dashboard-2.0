@@ -11,18 +11,23 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
+  AreaChart,
+  Area,
 } from "recharts";
+import { TrendingDown, TrendingUp, Mail, Wrench } from "lucide-react";
 
 import { useDashboardData } from "@/hooks/use-dashboard-data";
+import { KPICard, KPIGrid } from "@/components/shared/kpi-card";
 import { ChartCard } from "@/components/shared/chart-card";
 import { DataTable, type ColumnDef } from "@/components/shared/data-table";
 import { PageContainer } from "@/components/layout/page-container";
 import { PlaceholderCard } from "@/components/shared/placeholder-card";
 import {
+  KPICardSkeleton,
   ChartSkeleton,
   TableSkeleton,
 } from "@/components/shared/loading-skeleton";
-import { formatPercentRaw } from "@/lib/utils/formatting";
+import { formatNumber, formatPercentRaw } from "@/lib/utils/formatting";
 import { getGermanLabel } from "@/lib/utils/german-labels";
 import { chartColors } from "@/lib/constants/kpi-config";
 
@@ -41,6 +46,22 @@ interface SummaryData {
   sentimentBreakdown: BreakdownItem[];
   outcomeBreakdown: BreakdownItem[];
   resolutionBreakdown: BreakdownItem[];
+}
+
+interface StimmungData {
+  positiveToNegative: number;
+  positiveToNegativeRate: number;
+  negativeToPositive: number;
+  negativeToPositiveRate: number;
+  totalMultiEventTenants: number;
+  sentimentTransitions: Array<{ from: string; to: string; count: number }>;
+  reportsGenerated: number;
+  reportsSent: number;
+  uniqueCraftsmen: number;
+  totalCraftsmen: number;
+  craftsmanBreakdown: BreakdownItem[];
+  tradeBreakdown: BreakdownItem[];
+  monthlyMailVolume: Array<{ period: string; count: number }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -101,25 +122,42 @@ const sentimentColumns: ColumnDef<BreakdownItem & { germanLabel: string }>[] = [
   { key: "percentage", header: "%", accessor: (row) => row.percentage, render: (v) => formatPercentRaw(Number(v)), align: "right", sortable: true },
 ];
 
+const transitionColumns: ColumnDef<{ from: string; to: string; count: number }>[] = [
+  { key: "from", header: "Von", accessor: (row) => getGermanLabel(row.from), sortable: true },
+  { key: "to", header: "Zu", accessor: (row) => getGermanLabel(row.to), sortable: true },
+  { key: "count", header: "Anzahl", accessor: (row) => row.count, align: "right", sortable: true },
+];
+
+const craftsmanColumns: ColumnDef<BreakdownItem>[] = [
+  { key: "label", header: "Firma", accessor: (row) => row.label, sortable: true },
+  { key: "count", header: "Auftraege", accessor: (row) => row.count, align: "right", sortable: true },
+  { key: "percentage", header: "%", accessor: (row) => row.percentage, render: (v) => formatPercentRaw(Number(v)), align: "right", sortable: true },
+];
+
 // ---------------------------------------------------------------------------
 // Page Component
 // ---------------------------------------------------------------------------
 
 export default function StimmungPage() {
-  const { data, isLoading, error } =
+  const { data: summary, isLoading: summaryLoading, error: summaryError } =
     useDashboardData<SummaryData>("/api/summary");
+  const { data: stimmung, isLoading: stimmungLoading } =
+    useDashboardData<StimmungData>("/api/stimmung");
 
-  const sentimentData = (data?.sentimentBreakdown ?? []).map((item) => ({
+  const isLoading = summaryLoading || stimmungLoading;
+  const error = summaryError;
+
+  const sentimentData = (summary?.sentimentBreakdown ?? []).map((item) => ({
     ...item,
     germanLabel: getGermanLabel(item.label),
   }));
 
-  const resolutionData = (data?.resolutionBreakdown ?? []).map((item) => ({
+  const resolutionData = (summary?.resolutionBreakdown ?? []).map((item) => ({
     ...item,
     germanLabel: getGermanLabel(item.label),
   }));
 
-  const outcomeData = (data?.outcomeBreakdown ?? []).map((item) => ({
+  const outcomeData = (summary?.outcomeBreakdown ?? []).map((item) => ({
     ...item,
     germanLabel: getGermanLabel(item.label),
   }));
@@ -233,27 +271,166 @@ export default function StimmungPage() {
         )}
       </section>
 
-      {/* Under Construction & Coming Soon */}
+      {/* KPIs #33/#34: Sentiment Arcs */}
       <section>
         <h2 className="text-lg font-semibold mb-4">
-          Weitere Stimmungs-KPIs
+          KPI #33-34 — Stimmungsverlaeufe
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <PlaceholderCard
-            kpiNumber="KPI #33"
-            title="Positiv zu Negativ Verlauf"
-            status="under-construction"
-            description="Erfordert Start/End-Stimmungserkennung pro Nachricht."
-          />
-          <PlaceholderCard
-            kpiNumber="KPI #34"
-            title="Negativ zu Positiv Verlauf"
-            status="under-construction"
-            description="Zeigt AILEAN-Faehigkeit, frustrierte Mieter umzustimmen."
-          />
-        </div>
+        {isLoading ? (
+          <KPIGrid columns={3}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <KPICardSkeleton key={i} />
+            ))}
+          </KPIGrid>
+        ) : stimmung ? (
+          <>
+            <KPIGrid columns={3}>
+              <KPICard
+                title="Positiv zu Negativ"
+                value={String(stimmung.positiveToNegative)}
+                subtitle={
+                  "KPI #33 — " +
+                  formatPercentRaw(stimmung.positiveToNegativeRate) +
+                  " der Mehrfach-Mieter"
+                }
+                icon={TrendingDown}
+                thresholdColor={stimmung.positiveToNegativeRate > 10 ? "red" : "green"}
+              />
+              <KPICard
+                title="Negativ zu Positiv"
+                value={String(stimmung.negativeToPositive)}
+                subtitle={
+                  "KPI #34 — " +
+                  formatPercentRaw(stimmung.negativeToPositiveRate) +
+                  " der Mehrfach-Mieter"
+                }
+                icon={TrendingUp}
+                thresholdColor={stimmung.negativeToPositiveRate > 5 ? "green" : "amber"}
+              />
+              <KPICard
+                title="Mehrfach-Mieter analysiert"
+                value={formatNumber(stimmung.totalMultiEventTenants)}
+                subtitle="Mieter mit 2+ Interaktionen fuer Verlaufsanalyse"
+                thresholdColor="blue"
+              />
+            </KPIGrid>
+
+            {/* Sentiment Transition Table */}
+            {stimmung.sentimentTransitions.length > 0 && (
+              <div className="mt-4">
+                <DataTable
+                  data={stimmung.sentimentTransitions}
+                  columns={transitionColumns}
+                  pageSize={10}
+                  emptyMessage="Keine Uebergangsdaten"
+                />
+              </div>
+            )}
+          </>
+        ) : null}
       </section>
 
+      {/* KPI #41: Mail Analytics */}
+      <section>
+        <h2 className="text-lg font-semibold mb-4">
+          KPI #41 — Mail-Analyse / Handwerker-Reports
+        </h2>
+        {isLoading ? (
+          <>
+            <KPIGrid columns={4}>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <KPICardSkeleton key={i} />
+              ))}
+            </KPIGrid>
+            <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <ChartSkeleton />
+              <TableSkeleton rows={5} />
+            </div>
+          </>
+        ) : stimmung ? (
+          <>
+            <KPIGrid columns={4}>
+              <KPICard
+                title="Berichte generiert"
+                value={formatNumber(stimmung.reportsGenerated)}
+                subtitle="Deficiency Reports erstellt"
+                icon={Mail}
+                thresholdColor="blue"
+              />
+              <KPICard
+                title="An Handwerker gesendet"
+                value={formatNumber(stimmung.reportsSent)}
+                subtitle={
+                  formatPercentRaw(
+                    stimmung.reportsGenerated > 0
+                      ? (stimmung.reportsSent / stimmung.reportsGenerated) * 100
+                      : 0
+                  ) + " Versandquote"
+                }
+                icon={Wrench}
+                thresholdColor="green"
+              />
+              <KPICard
+                title="Unique Handwerker"
+                value={formatNumber(stimmung.uniqueCraftsmen)}
+                subtitle={"Von " + stimmung.totalCraftsmen + " registrierten Handwerkern"}
+                icon={Wrench}
+                thresholdColor="blue"
+              />
+              <KPICard
+                title="Handwerker-Firmen"
+                value={formatNumber(stimmung.craftsmanBreakdown.length)}
+                subtitle="Verschiedene Firmen"
+                icon={Wrench}
+                thresholdColor="blue"
+              />
+            </KPIGrid>
+
+            <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Monthly mail volume chart */}
+              {stimmung.monthlyMailVolume.length > 0 && (
+                <ChartCard
+                  title="Monatliches Versandvolumen"
+                  subtitle="An Handwerker gesendete Auftraege pro Monat"
+                >
+                  <ResponsiveContainer width="100%" height={250}>
+                    <AreaChart
+                      data={stimmung.monthlyMailVolume}
+                      margin={{ top: 5, right: 20, bottom: 5, left: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="period" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                      <Tooltip content={<CustomBarTooltip />} />
+                      <Area
+                        type="monotone"
+                        dataKey="count"
+                        stroke={chartColors[1]}
+                        fill={chartColors[1]}
+                        fillOpacity={0.2}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </ChartCard>
+              )}
+
+              {/* Craftsman company breakdown */}
+              {stimmung.craftsmanBreakdown.length > 0 && (
+                <div>
+                  <DataTable
+                    data={stimmung.craftsmanBreakdown}
+                    columns={craftsmanColumns}
+                    pageSize={10}
+                    emptyMessage="Keine Handwerkerdaten"
+                  />
+                </div>
+              )}
+            </div>
+          </>
+        ) : null}
+      </section>
+
+      {/* Coming Soon: FAIL KPIs */}
       <section>
         <h2 className="text-lg font-semibold mb-4">
           Nutzerstatistiken
@@ -276,12 +453,6 @@ export default function StimmungPage() {
             title="Feedback-Sammlung"
             status="coming-soon"
             description="Abhaengig von KPI #38. AI kann Fehlergruende aus Gespraechen extrahieren."
-          />
-          <PlaceholderCard
-            kpiNumber="KPI #41"
-            title="Mail-Analyse"
-            status="coming-soon"
-            description="476 Berichte generiert, 367 an 24 Handwerker gesendet. Reporting-Pipeline noch aufzubauen."
           />
         </div>
       </section>

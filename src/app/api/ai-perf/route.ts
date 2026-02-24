@@ -158,12 +158,13 @@ export async function GET(request: NextRequest) {
     { label: "Loop (>10)", count: ppLoop, percentage: safePercent(ppLoop, ppRows.length) },
   ];
 
-  // --- ADD-15: Bug Rate ---
-  const bugCount = rows.filter((r) => r.is_bug === true).length;
-  const bugRate = safePercent(bugCount, total);
-
+  // --- ADD-15: Bug Rate (bug_false_success OR bug_failed_report per MD guide) ---
   const bugFalseSuccess = rows.filter((r) => r.bug_false_success === true).length;
   const bugFailedReport = rows.filter((r) => r.bug_failed_report === true).length;
+  const bugCount = rows.filter(
+    (r) => r.bug_false_success === true || r.bug_failed_report === true
+  ).length;
+  const bugRate = safePercent(bugCount, total);
 
   // --- ADD-17: Tenant Adoption Rate ---
   // Get total managed units

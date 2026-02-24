@@ -105,6 +105,56 @@ export async function GET(request: NextRequest) {
     .sort((a, b) => b.count - a.count)
     .slice(0, 20);
 
+  // --- KPI #25: Reports per Owner ---
+  const ownerMap = new Map<string, number>();
+  for (const d of enriched) {
+    const owner = d.property_owner ? String(d.property_owner) : "Unbekannt";
+    ownerMap.set(owner, (ownerMap.get(owner) || 0) + 1);
+  }
+  const ownerBreakdown = Array.from(ownerMap.entries())
+    .map(([label, count]) => ({ label, count, percentage: safePercent(count, total) }))
+    .sort((a, b) => b.count - a.count);
+
+  // --- KPI #27: Reports per Building ---
+  const buildingMap = new Map<string, number>();
+  for (const d of enriched) {
+    const addr = String(d.building_address);
+    buildingMap.set(addr, (buildingMap.get(addr) || 0) + 1);
+  }
+  const buildingBreakdown = Array.from(buildingMap.entries())
+    .map(([label, count]) => ({ label, count, percentage: safePercent(count, total) }))
+    .sort((a, b) => b.count - a.count);
+
+  // --- KPI #28: Reports per Unit ---
+  const unitMap = new Map<string, number>();
+  for (const d of enriched) {
+    if (d.apartment_number) {
+      const unit = String(d.building_address) + " / " + String(d.apartment_number);
+      unitMap.set(unit, (unitMap.get(unit) || 0) + 1);
+    }
+  }
+  const unitBreakdown = Array.from(unitMap.entries())
+    .map(([label, count]) => ({ label, count, percentage: safePercent(count, total) }))
+    .sort((a, b) => b.count - a.count);
+  const unitCoverage = safePercent(
+    enriched.filter((d) => d.apartment_number).length,
+    total
+  );
+
+  // --- KPI #29: Reports per Postal Code ---
+  const postalMap = new Map<string, number>();
+  const postalRegex = /(\d{4})\s+\w/;
+  for (const d of enriched) {
+    const addr = String(d.building_address);
+    const match = addr.match(postalRegex);
+    if (match) {
+      postalMap.set(match[1], (postalMap.get(match[1]) || 0) + 1);
+    }
+  }
+  const postalCodeBreakdown = Array.from(postalMap.entries())
+    .map(([label, count]) => ({ label, count, percentage: safePercent(count, total) }))
+    .sort((a, b) => b.count - a.count);
+
   // --- Summary stats ---
   const uniqueTenants = tenantMap.size;
   const uniqueBuildings = new Set(enriched.map((d) => d.building_address)).size;
@@ -116,5 +166,10 @@ export async function GET(request: NextRequest) {
     portfolioBreakdown,
     tenantBreakdown,
     topUsers,
+    ownerBreakdown,
+    buildingBreakdown,
+    unitBreakdown,
+    unitCoverage,
+    postalCodeBreakdown,
   });
 }

@@ -37,6 +37,11 @@ interface ReportsData {
   portfolioBreakdown: BreakdownItem[];
   tenantBreakdown: TenantItem[];
   topUsers: TenantItem[];
+  ownerBreakdown: BreakdownItem[];
+  buildingBreakdown: BreakdownItem[];
+  unitBreakdown: BreakdownItem[];
+  unitCoverage: number;
+  postalCodeBreakdown: BreakdownItem[];
 }
 
 // ---------------------------------------------------------------------------
@@ -50,6 +55,42 @@ export default function BerichtePage() {
   const portfolioColumns = useMemo<ColumnDef<BreakdownItem>[]>(
     () => [
       { key: "label", header: "Portfolio / Brand", accessor: (row) => row.label, sortable: true },
+      { key: "count", header: "Maengel", accessor: (row) => row.count, align: "right", sortable: true },
+      { key: "percentage", header: "%", accessor: (row) => row.percentage, render: (v) => formatPercentRaw(Number(v)), align: "right", sortable: true },
+    ],
+    []
+  );
+
+  const ownerColumns = useMemo<ColumnDef<BreakdownItem>[]>(
+    () => [
+      { key: "label", header: "Eigentuemer", accessor: (row) => row.label, sortable: true },
+      { key: "count", header: "Maengel", accessor: (row) => row.count, align: "right", sortable: true },
+      { key: "percentage", header: "%", accessor: (row) => row.percentage, render: (v) => formatPercentRaw(Number(v)), align: "right", sortable: true },
+    ],
+    []
+  );
+
+  const buildingColumns = useMemo<ColumnDef<BreakdownItem>[]>(
+    () => [
+      { key: "label", header: "Liegenschaft", accessor: (row) => row.label, sortable: true },
+      { key: "count", header: "Maengel", accessor: (row) => row.count, align: "right", sortable: true },
+      { key: "percentage", header: "%", accessor: (row) => row.percentage, render: (v) => formatPercentRaw(Number(v)), align: "right", sortable: true },
+    ],
+    []
+  );
+
+  const unitColumns = useMemo<ColumnDef<BreakdownItem>[]>(
+    () => [
+      { key: "label", header: "Einheit (Adresse / Whg.Nr.)", accessor: (row) => row.label, sortable: true },
+      { key: "count", header: "Maengel", accessor: (row) => row.count, align: "right", sortable: true },
+      { key: "percentage", header: "%", accessor: (row) => row.percentage, render: (v) => formatPercentRaw(Number(v)), align: "right", sortable: true },
+    ],
+    []
+  );
+
+  const postalColumns = useMemo<ColumnDef<BreakdownItem>[]>(
+    () => [
+      { key: "label", header: "PLZ", accessor: (row) => row.label, sortable: true },
       { key: "count", header: "Maengel", accessor: (row) => row.count, align: "right", sortable: true },
       { key: "percentage", header: "%", accessor: (row) => row.percentage, render: (v) => formatPercentRaw(Number(v)), align: "right", sortable: true },
     ],
@@ -128,6 +169,82 @@ export default function BerichtePage() {
         ) : null}
       </section>
 
+      {/* KPI #25: Per Owner */}
+      <section>
+        <h2 className="text-lg font-semibold mb-4">
+          KPI #25 — Maengel pro Eigentuemer
+        </h2>
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 mb-3">
+          Teilweise Daten — NOVAC hat keine Eigentuemereintraege. PH: Daten vorhanden.
+        </div>
+        {isLoading ? (
+          <TableSkeleton rows={5} />
+        ) : data?.ownerBreakdown ? (
+          <DataTable
+            data={data.ownerBreakdown}
+            columns={ownerColumns}
+            pageSize={15}
+            emptyMessage="Keine Eigentuemerdaten"
+          />
+        ) : null}
+      </section>
+
+      {/* KPI #27: Per Building */}
+      <section>
+        <h2 className="text-lg font-semibold mb-4">
+          KPI #27 — Maengel pro Liegenschaft
+        </h2>
+        {isLoading ? (
+          <TableSkeleton rows={5} />
+        ) : data?.buildingBreakdown ? (
+          <DataTable
+            data={data.buildingBreakdown}
+            columns={buildingColumns}
+            pageSize={15}
+            emptyMessage="Keine Liegenschaftsdaten"
+          />
+        ) : null}
+      </section>
+
+      {/* KPI #28: Per Unit */}
+      <section>
+        <h2 className="text-lg font-semibold mb-4">
+          KPI #28 — Maengel pro Einheit
+        </h2>
+        {!isLoading && data && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 mb-3">
+            Teilweise Daten — {formatPercentRaw(data.unitCoverage)} der Maengel haben Wohnungsnummern.
+          </div>
+        )}
+        {isLoading ? (
+          <TableSkeleton rows={5} />
+        ) : data?.unitBreakdown ? (
+          <DataTable
+            data={data.unitBreakdown}
+            columns={unitColumns}
+            pageSize={15}
+            emptyMessage="Keine Einheitsdaten"
+          />
+        ) : null}
+      </section>
+
+      {/* KPI #29: Per Postal Code */}
+      <section>
+        <h2 className="text-lg font-semibold mb-4">
+          KPI #29 — Maengel pro Postleitzahl
+        </h2>
+        {isLoading ? (
+          <TableSkeleton rows={5} />
+        ) : data?.postalCodeBreakdown ? (
+          <DataTable
+            data={data.postalCodeBreakdown}
+            columns={postalColumns}
+            pageSize={15}
+            emptyMessage="Keine PLZ-Daten"
+          />
+        ) : null}
+      </section>
+
       {/* KPI #30 + #36: Per Tenant / Top Users */}
       <section>
         <h2 className="text-lg font-semibold mb-4">
@@ -145,41 +262,17 @@ export default function BerichtePage() {
         ) : null}
       </section>
 
-      {/* PARTIAL KPIs — Under Construction */}
+      {/* PARTIAL KPI: Data Matching */}
       <section>
         <h2 className="text-lg font-semibold mb-4">
           Weitere Berichtsdimensionen
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <PlaceholderCard
-            kpiNumber="KPI #25"
-            title="Maengel pro Eigentuemer"
-            status="under-construction"
-            description="NOVAC hat keine Eigentuemerdaten. PH: Daten vorhanden."
-          />
-          <PlaceholderCard
-            kpiNumber="KPI #27"
-            title="Maengel pro Liegenschaft"
-            status="under-construction"
-            description="Nur Maengel mit Azure-Verknuepfung verfuegbar."
-          />
-          <PlaceholderCard
-            kpiNumber="KPI #28"
-            title="Maengel pro Einheit"
-            status="under-construction"
-            description="Nur 53% der Einheiten haben Wohnungsnummern."
-          />
-          <PlaceholderCard
-            kpiNumber="KPI #29"
-            title="Maengel pro Postleitzahl"
-            status="under-construction"
-            description="PLZ muss via Regex aus Adresse extrahiert werden."
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <PlaceholderCard
             kpiNumber="KPI #14-17"
             title="Daten-Matching"
             status="under-construction"
-            description="Mieter-Einheit-Gebaeude-Eigentuemer-Verknuepfung. 5 Datenluecken identifiziert."
+            description="Mieter-Einheit-Gebaeude-Eigentuemer-Verknuepfung. 5 Datenluecken identifiziert. Vorschlag: tenant_profiles.property_id FK hinzufuegen."
           />
         </div>
       </section>
