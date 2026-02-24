@@ -57,24 +57,3 @@ export function useDashboardData<T>(
 export function useSummaryData() {
   return useDashboardData<Record<string, unknown>>("/api/summary");
 }
-
-/**
- * Hook for AI quality data
- */
-export function useAIQualityData() {
-  return useDashboardData<Record<string, unknown>>("/api/ai-quality");
-}
-
-/**
- * Hook for bug data
- */
-export function useBugData() {
-  return useDashboardData<Record<string, unknown>>("/api/bugs/clusters");
-}
-
-/**
- * Hook for trend data
- */
-export function useTrendData(type: "monthly" | "daily" = "monthly") {
-  return useDashboardData<Record<string, unknown>[]>(`/api/trends/${type}`);
-}

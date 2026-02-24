@@ -175,3 +175,85 @@ export function toBreakdown(
     percentage: safePercent(row.count, total),
   }));
 }
+
+/**
+ * Fetch all rows from any Supabase table with pagination.
+ * Used for azure_* tables and tenant_* tables that aren't in the base view.
+ */
+export async function fetchAllFromTable(
+  supabase: SupabaseClient,
+  table: string,
+  select: string = "*",
+  filters?: Record<string, unknown>
+): Promise<{ data: Record<string, unknown>[] | null; error: { message: string } | null }> {
+  const PAGE_SIZE = 1000;
+  let allRows: Record<string, unknown>[] = [];
+  let from = 0;
+
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    let query = supabase
+      .from(table)
+      .select(select)
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (filters) {
+      for (const [key, value] of Object.entries(filters)) {
+        if (value !== undefined && value !== null) {
+          query = query.eq(key, value);
+        }
+      }
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      return { data: null, error };
+    }
+
+    const rows = (data ?? []) as unknown as Record<string, unknown>[];
+    allRows = allRows.concat(rows);
+
+    if (rows.length < PAGE_SIZE) {
+      break;
+    }
+
+    from += PAGE_SIZE;
+  }
+
+  return { data: allRows, error: null };
+}
+
+/**
+ * Deficiency type bitmask decoder
+ */
+export const DEFICIENCY_TYPE_MAP: Record<number, string> = {
+  1: "Handwerker",
+  2: "Sanitaer",
+  4: "Geraete",
+  8: "Boden",
+  16: "Schluessel",
+  32: "Fenster",
+  64: "Elektrik",
+  128: "Maler",
+  256: "Schaedlinge",
+  512: "Garage",
+  1024: "Aufzug",
+  2048: "Heizung/Lueftung",
+  4096: "Abwasser",
+  8192: "Notfall",
+  16384: "Rolllaeden",
+};
+
+/**
+ * Decode a deficiency_types bitmask into an array of category names
+ */
+export function decodeDeficiencyTypes(bitmask: number): string[] {
+  const types: string[] = [];
+  for (const [bit, name] of Object.entries(DEFICIENCY_TYPE_MAP)) {
+    if (bitmask & Number(bit)) {
+      types.push(name);
+    }
+  }
+  return types.length > 0 ? types : ["Unbekannt"];
+}

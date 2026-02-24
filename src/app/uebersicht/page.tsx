@@ -1,11 +1,11 @@
 "use client";
 
 import {
-  MessageSquare,
-  FileText,
-  Brain,
-  Zap,
-  RefreshCw,
+  FileWarning,
+  CheckCircle2,
+  Clock,
+  Timer,
+  Users,
   Bug,
 } from "lucide-react";
 import {
@@ -19,6 +19,8 @@ import {
   PieChart,
   Pie,
   Cell,
+  AreaChart,
+  Area,
 } from "recharts";
 
 import { useDashboardData } from "@/hooks/use-dashboard-data";
@@ -32,15 +34,12 @@ import {
 } from "@/components/shared/loading-skeleton";
 import { formatNumber, formatPercentRaw } from "@/lib/utils/formatting";
 import {
-  getThresholdColor,
   getInverseThresholdColor,
-  thresholds,
   inverseThresholds,
 } from "@/lib/utils/thresholds";
 import {
   getGermanLabel,
   stateCategories,
-  dayOfWeekShortLabels,
 } from "@/lib/utils/german-labels";
 import { chartColors } from "@/lib/constants/kpi-config";
 
@@ -54,98 +53,50 @@ interface BreakdownItem {
   percentage: number;
 }
 
-interface HourBreakdownItem {
-  label: string | number;
-  count: number;
-  percentage: number;
-}
-
-interface DayBreakdownItem {
-  label: string | number;
-  count: number;
-  percentage: number;
-}
-
-interface StateBreakdownItem {
-  label: string;
-  count: number;
-  percentage: number;
-  category?: string;
-}
-
 interface SummaryData {
   totalEvents: number;
   totalWithDeficiencyReport: number;
   deficiencyReportRate: number;
   avgAiQualityScore: number;
-  avgTenantEffort: number;
   loopDetectionRate: number;
-  misunderstandingRate: number;
   bugRate: number;
-  correctTriageRate: number;
-  avgUnnecessaryQuestions: number;
-  urgencyRate: number;
   automationRate: number;
   avgFirstResponseSec: number;
   avgDurationMin: number;
-  agentTakeoverRate: number;
   sentimentBreakdown: BreakdownItem[];
-  severityBreakdown: BreakdownItem[];
   categoryBreakdown: BreakdownItem[];
-  resolutionBreakdown: BreakdownItem[];
-  intentBreakdown: BreakdownItem[];
-  outcomeBreakdown: BreakdownItem[];
-  inquiryTypeBreakdown: BreakdownItem[];
-  stateBreakdown: StateBreakdownItem[];
+  stateBreakdown: (BreakdownItem & { category?: string })[];
   businessHoursBreakdown: BreakdownItem[];
-  dayOfWeekBreakdown: DayBreakdownItem[];
-  hourOfDayBreakdown: HourBreakdownItem[];
+}
+
+interface DeficiencyData {
+  totalDeficiencies: number;
+  solvedCount: number;
+  solvedPercent: number;
+  overallAvgClosingDays: number;
+  categoryBreakdown: BreakdownItem[];
+  monthlyTrend: { period: string; count: number }[];
+  stateBreakdown: (BreakdownItem & { stateId: number })[];
 }
 
 // ---------------------------------------------------------------------------
-// Helper: translate breakdown labels to German
+// Tooltips
 // ---------------------------------------------------------------------------
 
-function translateBreakdown<T extends { label: string | number }>(
-  items: T[] | undefined
-): (T & { germanLabel: string })[] {
-  if (!items) return [];
-  return items.map((item) => ({
-    ...item,
-    germanLabel:
-      typeof item.label === "number"
-        ? String(item.label)
-        : getGermanLabel(item.label),
-  }));
-}
-
-function translateDayOfWeekBreakdown(
-  items: DayBreakdownItem[] | undefined
-): (DayBreakdownItem & { germanLabel: string })[] {
-  if (!items) return [];
-  return items.map((item) => ({
-    ...item,
-    germanLabel:
-      dayOfWeekShortLabels[Number(item.label)] ?? String(item.label),
-  }));
-}
-
-// ---------------------------------------------------------------------------
-// Custom Recharts tooltips
-// ---------------------------------------------------------------------------
-
-interface CustomTooltipPayload {
+interface TooltipPayload {
   value: number;
   name: string;
 }
 
-interface CustomTooltipProps {
+function CustomBarTooltip({
+  active,
+  payload,
+  label,
+}: {
   active?: boolean;
-  payload?: CustomTooltipPayload[];
+  payload?: TooltipPayload[];
   label?: string;
-}
-
-function CustomBarTooltip({ active, payload, label }: CustomTooltipProps) {
+}) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-md border bg-card px-3 py-2 text-sm shadow-md">
@@ -155,27 +106,29 @@ function CustomBarTooltip({ active, payload, label }: CustomTooltipProps) {
   );
 }
 
-function CustomPieTooltip({ active, payload }: CustomTooltipProps) {
+function CustomPieTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: TooltipPayload[];
+}) {
   if (!active || !payload?.length) return null;
-  const entry = payload[0];
   return (
     <div className="rounded-md border bg-card px-3 py-2 text-sm shadow-md">
-      <p className="font-medium">{entry.name}</p>
-      <p className="text-muted-foreground">Anzahl: {entry.value}</p>
+      <p className="font-medium">{payload[0].name}</p>
+      <p className="text-muted-foreground">Anzahl: {payload[0].value}</p>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Pie label renderer
-// ---------------------------------------------------------------------------
-
-interface PieLabelProps {
+function renderPieLabel({
+  germanLabel,
+  percentage,
+}: {
   germanLabel: string;
   percentage: number;
-}
-
-function renderPieLabel({ germanLabel, percentage }: PieLabelProps): string {
+}): string {
   return germanLabel + " (" + percentage.toFixed(0) + "%)";
 }
 
@@ -184,51 +137,56 @@ function renderPieLabel({ germanLabel, percentage }: PieLabelProps): string {
 // ---------------------------------------------------------------------------
 
 export default function UebersichtPage() {
-  const { data, isLoading, error } =
+  const { data: summary, isLoading: summaryLoading, error: summaryError } =
     useDashboardData<SummaryData>("/api/summary");
+  const { data: deficiency, isLoading: defLoading } =
+    useDashboardData<DeficiencyData>("/api/deficiency");
 
-  // ---- Prepare chart data ----
-  const categoryData = translateBreakdown(data?.categoryBreakdown);
-  const sentimentData = translateBreakdown(data?.sentimentBreakdown);
-  const resolutionData = translateBreakdown(data?.resolutionBreakdown);
-  const businessHoursData = translateBreakdown(data?.businessHoursBreakdown);
-  const dayOfWeekData = translateDayOfWeekBreakdown(data?.dayOfWeekBreakdown);
-  const hourOfDayData = (data?.hourOfDayBreakdown ?? []).map((item) => ({
+  const isLoading = summaryLoading || defLoading;
+
+  const sentimentData = (summary?.sentimentBreakdown ?? []).map((item) => ({
     ...item,
-    germanLabel: String(item.label).padStart(2, "0") + ":00",
+    germanLabel: getGermanLabel(item.label),
   }));
 
-  // ---- Pipeline segments ----
-  const pipelineSegments = (data?.stateBreakdown ?? []).map((s) => ({
-    label:
-      s.category && s.category in stateCategories
-        ? stateCategories[s.category as keyof typeof stateCategories]
-        : getGermanLabel(s.label),
-    count: s.count,
-    category: s.category,
-  }));
+  const categoryData = (deficiency?.categoryBreakdown ?? summary?.categoryBreakdown ?? []).map(
+    (item) => ({
+      ...item,
+      germanLabel: getGermanLabel(item.label),
+    })
+  );
 
-  // ---- Automation rate: API returns 0-1, convert to percentage ----
-  const automationRateDisplay =
-    data != null
-      ? data.automationRate <= 1
-        ? data.automationRate * 100
-        : data.automationRate
+  const monthlyData = deficiency?.monthlyTrend ?? [];
+
+  const pipelineSegments = (deficiency?.stateBreakdown ?? summary?.stateBreakdown ?? []).map(
+    (s) => ({
+      label:
+        "category" in s && s.category && s.category in stateCategories
+          ? stateCategories[s.category as keyof typeof stateCategories]
+          : s.label,
+      count: s.count,
+    })
+  );
+
+  const automationDisplay =
+    summary != null
+      ? summary.automationRate <= 1
+        ? summary.automationRate * 100
+        : summary.automationRate
       : 0;
 
   return (
     <PageContainer
       title="Uebersicht"
-      description="Zentrale KPI-Uebersicht aller AILEAN Chatbot-Metriken"
+      description="Zentrale KPI-Uebersicht — AILEAN Dashboard"
     >
-      {/* Error state */}
-      {error && (
+      {summaryError && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           Fehler beim Laden der Daten. Bitte versuchen Sie es spaeter erneut.
         </div>
       )}
 
-      {/* Section 1: Hero KPI Cards (3x2 grid) */}
+      {/* Section 1: Hero KPI Cards */}
       <section>
         <h2 className="text-lg font-semibold mb-4">Wichtigste Kennzahlen</h2>
         {isLoading ? (
@@ -237,86 +195,82 @@ export default function UebersichtPage() {
               <KPICardSkeleton key={i} />
             ))}
           </KPIGrid>
-        ) : data ? (
+        ) : (
           <KPIGrid columns={3}>
             <KPICard
-              title="Gesamte Anfragen"
-              value={formatNumber(data.totalEvents)}
-              subtitle={data.totalWithDeficiencyReport + " mit Mangelbericht"}
-              icon={MessageSquare}
-              thresholdColor="blue"
-              drillDownHref="/insights"
-            />
-
-            <KPICard
-              title="Maengelberichte"
-              value={formatPercentRaw(data.deficiencyReportRate)}
+              title="Gesamte Maengel"
+              value={formatNumber(deficiency?.totalDeficiencies ?? 0)}
               subtitle={
-                data.totalWithDeficiencyReport +
-                " von " +
-                data.totalEvents +
-                " Anfragen"
+                (summary?.totalEvents ?? 0) + " Gesamt-Anfragen (alle Typen)"
               }
-              icon={FileText}
-              thresholdColor={getThresholdColor(
-                data.deficiencyReportRate,
-                thresholds.deficiencyReportRate
-              )}
-              drillDownHref="/handwerker"
+              icon={FileWarning}
+              thresholdColor="blue"
+              drillDownHref="/maengel"
             />
 
             <KPICard
-              title="AI Qualitaetsscore"
-              value={data.avgAiQualityScore.toFixed(1) + "/10"}
-              subtitle="Durchschnittliche Bewertung (Skala 1-10)"
-              icon={Brain}
-              thresholdColor={getThresholdColor(
-                data.avgAiQualityScore,
-                thresholds.aiQualityScore
-              )}
-              drillDownHref="/ai-quality"
+              title="Geloest mit AILEAN"
+              value={formatPercentRaw(deficiency?.solvedPercent ?? 0)}
+              subtitle={
+                "KPI #20 — " +
+                (deficiency?.solvedCount ?? 0) +
+                " von " +
+                (deficiency?.totalDeficiencies ?? 0) +
+                " Maengeln"
+              }
+              icon={CheckCircle2}
+              thresholdColor="green"
+              drillDownHref="/maengel"
+            />
+
+            <KPICard
+              title="Durchschn. Schliesszeit"
+              value={
+                (deficiency?.overallAvgClosingDays ?? 0).toFixed(1) + " Tage"
+              }
+              subtitle="KPI #35 — Durchschnittliche Bearbeitungszeit"
+              icon={Timer}
+              thresholdColor="blue"
+              drillDownHref="/maengel"
             />
 
             <KPICard
               title="Automatisierungsrate"
-              value={formatPercentRaw(automationRateDisplay)}
+              value={formatPercentRaw(automationDisplay)}
               subtitle="Anteil vollautomatisierter Anfragen"
-              icon={Zap}
-              thresholdColor={getThresholdColor(
-                data.automationRate,
-                thresholds.automationRate
-              )}
-              drillDownHref="/insights"
-            />
-
-            <KPICard
-              title="Loop Rate"
-              value={formatPercentRaw(data.loopDetectionRate)}
-              subtitle="Wiederholte Schleifen erkannt"
-              icon={RefreshCw}
-              thresholdColor={getInverseThresholdColor(
-                data.loopDetectionRate,
-                inverseThresholds.loopRate
-              )}
-              drillDownHref="/ai-quality"
+              icon={Clock}
+              thresholdColor="blue"
+              drillDownHref="/ai-performance"
             />
 
             <KPICard
               title="Bug Rate"
-              value={formatPercentRaw(data.bugRate)}
-              subtitle="Anteil fehlerhafter Interaktionen"
+              value={formatPercentRaw(summary?.bugRate ?? 0)}
+              subtitle="ADD-15 — Anteil fehlerhafter Interaktionen"
               icon={Bug}
               thresholdColor={getInverseThresholdColor(
-                data.bugRate,
+                summary?.bugRate ?? 0,
                 inverseThresholds.bugRate
               )}
-              drillDownHref="/bug-tracker"
+              drillDownHref="/ai-performance"
+            />
+
+            <KPICard
+              title="Gesamt-Anfragen"
+              value={formatNumber(summary?.totalEvents ?? 0)}
+              subtitle={
+                (summary?.totalWithDeficiencyReport ?? 0) +
+                " mit Mangelbericht"
+              }
+              icon={Users}
+              thresholdColor="blue"
+              drillDownHref="/berichte"
             />
           </KPIGrid>
-        ) : null}
+        )}
       </section>
 
-      {/* Section 2: Pipeline Bar */}
+      {/* Section 2: Pipeline */}
       {!isLoading && pipelineSegments.length > 0 && (
         <section>
           <ChartCard title="Mangel-Pipeline" subtitle="Verteilung nach Status">
@@ -331,26 +285,25 @@ export default function UebersichtPage() {
         </section>
       )}
 
-      {/* Section 3: Charts (2-column grid) */}
+      {/* Section 3: Charts */}
       <section>
         <h2 className="text-lg font-semibold mb-4">Detailanalysen</h2>
         {isLoading ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
+            {Array.from({ length: 4 }).map((_, i) => (
               <ChartSkeleton key={i} />
             ))}
           </div>
-        ) : data ? (
+        ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Deficiency Category Bar Chart */}
+            {/* KPI #18: Deficiency Categories */}
             <ChartCard
-              title="Mangelkategorien"
-              subtitle="Verteilung nach Kategorie"
+              title="KPI #18 — Mangelkategorien"
+              subtitle="Verteilung nach Kategorie (Bitmask)"
             >
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart
                   data={categoryData}
-                  layout="horizontal"
                   margin={{ top: 5, right: 20, bottom: 5, left: 5 }}
                 >
                   <CartesianGrid
@@ -375,9 +328,9 @@ export default function UebersichtPage() {
               </ResponsiveContainer>
             </ChartCard>
 
-            {/* Sentiment Pie Chart */}
+            {/* KPIs #31-32: Sentiment */}
             <ChartCard
-              title="Stimmungsverteilung"
+              title="KPI #31-32 — Stimmungsverteilung"
               subtitle="Mieterstimmung nach Kategorie"
             >
               <ResponsiveContainer width="100%" height={250}>
@@ -395,7 +348,7 @@ export default function UebersichtPage() {
                   >
                     {sentimentData.map((_, i) => (
                       <Cell
-                        key={"sentiment-" + i}
+                        key={"s-" + i}
                         fill={chartColors[i % chartColors.length]}
                       />
                     ))}
@@ -405,48 +358,51 @@ export default function UebersichtPage() {
               </ResponsiveContainer>
             </ChartCard>
 
-            {/* Resolution Method Bar Chart */}
+            {/* KPI #21: Monthly Trend */}
             <ChartCard
-              title="Loesungsmethoden"
-              subtitle="Wie Anfragen geloest wurden"
+              title="KPI #21 — Monatlicher Trend"
+              subtitle="Maengel pro Monat"
             >
               <ResponsiveContainer width="100%" height={250}>
-                <BarChart
-                  data={resolutionData}
-                  layout="horizontal"
+                <AreaChart
+                  data={monthlyData}
                   margin={{ top: 5, right: 20, bottom: 5, left: 5 }}
                 >
                   <CartesianGrid
                     strokeDasharray="3 3"
                     className="stroke-muted"
                   />
-                  <XAxis
-                    dataKey="germanLabel"
-                    tick={{ fontSize: 10 }}
-                    angle={-35}
-                    textAnchor="end"
-                    height={80}
-                  />
+                  <XAxis dataKey="period" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
                   <Tooltip content={<CustomBarTooltip />} />
-                  <Bar
+                  <Area
+                    type="monotone"
                     dataKey="count"
-                    fill={chartColors[1]}
-                    radius={[4, 4, 0, 0]}
+                    stroke={chartColors[0]}
+                    fill={chartColors[0]}
+                    fillOpacity={0.2}
                   />
-                </BarChart>
+                </AreaChart>
               </ResponsiveContainer>
             </ChartCard>
 
-            {/* Business Hours Pie Chart */}
+            {/* Business Hours */}
             <ChartCard
               title="Geschaeftszeiten"
-              subtitle="Anfragen innerhalb vs. ausserhalb der Geschaeftszeiten"
+              subtitle="Innerhalb vs. ausserhalb der Buerozeiten"
             >
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
                   <Pie
-                    data={businessHoursData}
+                    data={(summary?.businessHoursBreakdown ?? []).map((b) => ({
+                      ...b,
+                      germanLabel:
+                        b.label === "inside"
+                          ? "Innerhalb"
+                          : b.label === "outside"
+                          ? "Ausserhalb"
+                          : getGermanLabel(b.label),
+                    }))}
                     dataKey="count"
                     nameKey="germanLabel"
                     cx="50%"
@@ -456,77 +412,15 @@ export default function UebersichtPage() {
                     label={renderPieLabel}
                     labelLine
                   >
-                    {businessHoursData.map((_, i) => (
-                      <Cell
-                        key={"bh-" + i}
-                        fill={chartColors[i % chartColors.length]}
-                      />
-                    ))}
+                    <Cell fill={chartColors[0]} />
+                    <Cell fill={chartColors[2]} />
                   </Pie>
                   <Tooltip content={<CustomPieTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
             </ChartCard>
-
-            {/* Day of Week Bar Chart */}
-            <ChartCard
-              title="Wochentage"
-              subtitle="Anfragen nach Wochentag"
-            >
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart
-                  data={dayOfWeekData}
-                  layout="horizontal"
-                  margin={{ top: 5, right: 20, bottom: 5, left: 5 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    className="stroke-muted"
-                  />
-                  <XAxis dataKey="germanLabel" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-                  <Tooltip content={<CustomBarTooltip />} />
-                  <Bar
-                    dataKey="count"
-                    fill={chartColors[4]}
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-
-            {/* Hour of Day Bar Chart */}
-            <ChartCard
-              title="Tageszeit"
-              subtitle="Anfragen nach Uhrzeit"
-            >
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart
-                  data={hourOfDayData}
-                  layout="horizontal"
-                  margin={{ top: 5, right: 20, bottom: 5, left: 5 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    className="stroke-muted"
-                  />
-                  <XAxis
-                    dataKey="germanLabel"
-                    tick={{ fontSize: 10 }}
-                    interval={1}
-                  />
-                  <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-                  <Tooltip content={<CustomBarTooltip />} />
-                  <Bar
-                    dataKey="count"
-                    fill={chartColors[5]}
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
           </div>
-        ) : null}
+        )}
       </section>
     </PageContainer>
   );
