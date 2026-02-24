@@ -84,7 +84,10 @@ export async function GET(request: NextRequest) {
   const totalWithDeficiencyReport = countTrue(rows, "has_deficiency_report");
   const loopCount = countTrue(rows, "ai_loop_detected");
   const misunderstandingCount = countTrue(rows, "ai_misunderstood");
-  const bugCount = countTrue(rows, "is_bug");
+  // Bug count per MD guide: bug_false_success OR bug_failed_report (ADD-15)
+  const bugCount = rows.filter(
+    (r) => r.bug_false_success === true || r.bug_failed_report === true
+  ).length;
   const correctTriageCount = countTrue(rows, "ai_correct_triage");
   const urgentCount = countTrue(rows, "is_urgent");
   const agentTakeoverCount = countTrue(rows, "has_agent_takeover");

@@ -121,7 +121,8 @@ export async function GET(request: NextRequest) {
     .sort((a, b) => b.count - a.count);
 
   // --- KPI #20: % Solved with AILEAN ---
-  const terminalStates = [4, 9, 13, 15];
+  // MD guide query: IN (4, 9, 13). State 15 (Cancelled/Storniert) does NOT count as solved.
+  const terminalStates = [4, 9, 13];
   const solvedCount = enriched.filter((d) =>
     terminalStates.includes(Number(d.deficiency_state))
   ).length;

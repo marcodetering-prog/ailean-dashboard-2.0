@@ -55,10 +55,105 @@ export async function GET(request: NextRequest) {
       ? sortedResponseTimes[Math.floor(sortedResponseTimes.length / 2)]
       : 0;
 
-  // --- ADD-6: SLA Compliance ---
-  const slaCompliant = rows.filter((r) => r.sla_compliance === "compliant").length;
-  const slaBreached = rows.filter((r) => r.sla_compliance === "breached").length;
-  const slaAtRisk = rows.filter((r) => r.sla_compliance === "at_risk").length;
+  // --- ADD-6: SLA Compliance (Deficiency reports ONLY per MD guide) ---
+  // Source: azure_real_estate_company_configurations (thresholds) + deficiency timestamps
+  // SLA thresholds from MD:
+  //   PH: cosmetic/partial/severe all = WorkdaysWithin72Hours
+  //   NOVAC: cosmetic/partial = WorkdaysWithin48Hours, severe = WorkdaysWithin8Hours
+
+  // Fetch company configs for SLA thresholds
+  const { data: companyConfigs } = await fetchAllFromTable(
+    supabase,
+    "azure_real_estate_company_configurations",
+    "accommodation_id, cosmetic_issue_response_time, partial_limitation_response_time, severe_deficiency_response_time"
+  );
+  // Fetch deficiencies for SLA calculation
+  const { data: slaDefData } = await fetchAllFromTable(
+    supabase,
+    "azure_real_estate_deficiencies",
+    "id, real_estate_property_id, deficiency_types, time_added, next_follow_up, deficiency_state"
+  );
+  const { data: slaAccData } = await fetchAllFromTable(
+    supabase,
+    "azure_accommodations",
+    "id, name, brand"
+  );
+  const { data: slaCondData } = await fetchAllFromTable(
+    supabase,
+    "azure_real_estate_condominia",
+    "id, accommodation_id"
+  );
+  const { data: slaPropData } = await fetchAllFromTable(
+    supabase,
+    "azure_real_estate_properties",
+    "id, real_estate_condominium_id"
+  );
+
+  // Build lookup chain for SLA
+  const slaAccMap = new Map((slaAccData ?? []).map((a) => [a.id, a]));
+  const slaCondMap = new Map((slaCondData ?? []).map((c) => [c.id, c]));
+  const slaPropMap = new Map((slaPropData ?? []).map((p) => [p.id, p]));
+  const configMap = new Map(
+    (companyConfigs ?? []).map((c) => [c.accommodation_id as string, c])
+  );
+
+  // Parse SLA threshold string to hours
+  function parseSlaHours(threshold: string | null | undefined): number {
+    if (!threshold) return 72;
+    if (threshold.includes("8Hours")) return 8;
+    if (threshold.includes("24Hours")) return 24;
+    if (threshold.includes("48Hours")) return 48;
+    if (threshold.includes("72Hours")) return 72;
+    return 72; // default
+  }
+
+  let slaCompliant = 0;
+  let slaBreached = 0;
+  let slaAtRisk = 0;
+
+  for (const d of slaDefData ?? []) {
+    if (!d.time_added || !d.next_follow_up) continue;
+    const followUp = new Date(d.next_follow_up as string);
+    if (followUp.getFullYear() <= 2000) continue; // skip 0001-01-01
+
+    const prop = slaPropMap.get(d.real_estate_property_id);
+    if (!prop) continue;
+    const cond = slaCondMap.get((prop as Record<string, unknown>).real_estate_condominium_id);
+    if (!cond) continue;
+    const acc = slaAccMap.get((cond as Record<string, unknown>).accommodation_id);
+    if (!acc) continue;
+
+    // Apply brand filter
+    if (filters.brand && filters.brand !== "all") {
+      const brandName = String((acc as Record<string, unknown>).brand || (acc as Record<string, unknown>).name || "");
+      if (!brandName.toLowerCase().includes(filters.brand.toLowerCase())) continue;
+    }
+
+    // Apply date filter
+    const addedDate = new Date(d.time_added as string);
+    if (filters.dateFrom && addedDate < new Date(filters.dateFrom)) continue;
+    if (filters.dateTo && addedDate > new Date(`${filters.dateTo}T23:59:59.999Z`)) continue;
+
+    // Determine severity from deficiency_types: bit 13 (8192) = Emergency = severe
+    const types = Number(d.deficiency_types) || 0;
+    const isSevere = (types & 8192) > 0;
+
+    const config = configMap.get((cond as Record<string, unknown>).accommodation_id as string);
+    const slaHours = isSevere
+      ? parseSlaHours(config?.severe_deficiency_response_time as string)
+      : parseSlaHours(config?.cosmetic_issue_response_time as string);
+
+    const responseHours =
+      (followUp.getTime() - addedDate.getTime()) / (1000 * 60 * 60);
+
+    if (responseHours <= slaHours) {
+      slaCompliant++;
+    } else if (responseHours <= slaHours * 1.5) {
+      slaAtRisk++;
+    } else {
+      slaBreached++;
+    }
+  }
   const slaKnown = slaCompliant + slaBreached + slaAtRisk;
   const slaComplianceRate = safePercent(slaCompliant, slaKnown);
 
@@ -167,13 +262,38 @@ export async function GET(request: NextRequest) {
   const bugRate = safePercent(bugCount, total);
 
   // --- ADD-17: Tenant Adoption Rate ---
-  // Get total managed units
+  // Get total managed units filtered by brand (MD: join chain with brand filter)
+  const { data: accDataAdopt } = await fetchAllFromTable(
+    supabase,
+    "azure_accommodations",
+    "id, name, brand"
+  );
+  const { data: condDataAdopt } = await fetchAllFromTable(
+    supabase,
+    "azure_real_estate_condominia",
+    "id, accommodation_id"
+  );
   const { data: propData } = await fetchAllFromTable(
     supabase,
     "azure_real_estate_properties",
     "id, real_estate_condominium_id"
   );
-  const totalProperties = (propData ?? []).length;
+
+  // Build brand-filtered property count
+  const accAdoptMap = new Map((accDataAdopt ?? []).map((a) => [a.id, a]));
+  const condAdoptMap = new Map(
+    (condDataAdopt ?? []).map((c) => [c.id, c])
+  );
+  let totalProperties = 0;
+  for (const p of propData ?? []) {
+    const cond = condAdoptMap.get(p.real_estate_condominium_id);
+    const acc = cond ? accAdoptMap.get((cond as Record<string, unknown>).accommodation_id) : null;
+    if (filters.brand && filters.brand !== "all") {
+      const brandName = String((acc as Record<string, unknown>)?.brand || (acc as Record<string, unknown>)?.name || "");
+      if (!brandName.toLowerCase().includes(filters.brand.toLowerCase())) continue;
+    }
+    totalProperties++;
+  }
 
   // Monthly unique tenants for adoption trend
   const monthlyAdoption = new Map<string, Set<string>>();
